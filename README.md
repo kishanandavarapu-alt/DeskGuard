@@ -1,73 +1,70 @@
-# React + TypeScript + Vite
+# DeskGuard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Library Seat Booking & Anti-Hoarding App**
 
-Currently, two official plugins are available:
+DeskGuard solves a common campus problem: students reserve library desks with their bags and disappear for hours, leaving other students with nowhere to study. DeskGuard provides a live, color-coded map of desk availability, QR-based check-in, and automatic freeing of abandoned desks.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- **Live library map** — color-coded grid showing desk status:
+  - 🟩 Green = Free
+  - 🟥 Red = Occupied
+  - 🟨 Yellow = Away (paused, returning soon)
+  - ⬜ Grey = Abandoned
+- **QR check-in** — students scan a QR code on their desk to check in
+- **Away mode** — pause your session for up to 20 minutes without losing your desk
+- **Auto-abandon** — if a student doesn't respond to a "Still here?" prompt, the desk is automatically freed
+- **Librarian dashboard** — view all desks, filter abandoned ones, and manually reset any desk
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## How to Run
 
-## Expanding the ESLint configuration
+1. Clone this repository
+   ```bash
+   git clone <your-repo-url>
+   cd deskguard
+   ```
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+2. Install dependencies
+   ```bash
+   npm install
+   ```
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+3. Start the development server
+   ```bash
+   npm run dev
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+4. Open [http://localhost:5173](http://localhost:5173) in your browser
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+5. For QR scanning, allow camera access when prompted (works on `localhost` and on HTTPS deployments)
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Environment Variables
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+None required for this prototype — it runs entirely on mock/local data with no backend or database connection.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Tech Stack
+
+- **Frontend:** React (Vite) + Tailwind CSS
+- **QR Code:** `qrcode.react` (generation), `html5-qrcode` (scanning)
+- **Planned Backend:** Node.js / Express
+- **Planned Database:** PostgreSQL
+- **Planned Real-time Updates:** WebSocket
+
+## Note on Timer Implementation
+
+This Round 1 prototype uses client-side timers (JavaScript `setInterval`) to demonstrate the check-in, away, and auto-abandon flow visually.
+
+In production, all timers would be server-authoritative: a Node.js backend with PostgreSQL stores each desk's check-in/away timestamps, and a background cron job sweeps the database every minute to auto-expire desks — never relying on the browser. See the architecture diagram in the pitch deck for the planned design.
+
+## Engineering Challenge (Production Design)
+
+- All desk timers run **server-side** — never trusted from the browser
+- A background cron job sweeps the database every minute, auto-expiring desks whose check-in or Away timer has run out
+- Librarians can view abandoned desks and manually reset them via a dedicated dashboard
+
+## Future Scope
+
+- Real QR codes printed and affixed to physical desks
+- Push notifications for "Still here?" prompts
+- Occupancy analytics and trend reporting for librarians
+- Mobile app version
