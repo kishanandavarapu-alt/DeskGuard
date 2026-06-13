@@ -15,11 +15,12 @@ function QRScannerModal({ onClose, onScan }: QRScannerModalProps) {
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
   const [started, setStarted] = useState(false)
+  const [loadingCamera, setLoadingCamera] = useState(false)
+  const [cameras, setCameras] = useState<{ id: string; label: string }[]>([])
+  const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null)
 
-  const startScanning = async () => {
-    setCameraError(null)
-    setScanError(null)
-    hasScannedRef.current = false
+  const startCameraWithId = async (cameraId: string) => {
+    setLoadingCamera(true)
     setStarted(true)
 
     try {
@@ -27,7 +28,7 @@ function QRScannerModal({ onClose, onScan }: QRScannerModalProps) {
       html5QrCodeRef.current = html5QrCode
 
       await html5QrCode.start(
-        { facingMode: 'environment' },
+        cameraId,
         { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1 },
         (decodedText) => {
           if (hasScannedRef.current) return
@@ -48,10 +49,62 @@ function QRScannerModal({ onClose, onScan }: QRScannerModalProps) {
         },
         () => {},
       )
+      setLoadingCamera(false)
     } catch {
       setCameraError(CAMERA_ERROR_MESSAGE)
       setStarted(false)
+      setLoadingCamera(false)
     }
+  }
+
+  const requestCameraAndStart = async () => {
+    setCameraError(null)
+    setScanError(null)
+    hasScannedRef.current = false
+    setLoadingCamera(true)
+
+    try {
+      // This call triggers the browser's camera permission prompt
+      const devices = await Html5Qrcode.getCameras()
+
+      if (!devices || devices.length === 0) {
+        setCameraError(CAMERA_ERROR_MESSAGE)
+        setLoadingCamera(false)
+        return
+      }
+
+      setCameras(devices)
+
+      // Prefer the back/environment camera by default
+      const backCamera = devices.find((d) =>
+        /back|rear|environment/i.test(d.label),
+      )
+      const defaultCamera = backCamera ?? devices[0]
+      setSelectedCameraId(defaultCamera.id)
+
+      await startCameraWithId(defaultCamera.id)
+    } catch {
+      setCameraError(CAMERA_ERROR_MESSAGE)
+      setLoadingCamera(false)
+    }
+  }
+
+  const switchCamera = async (cameraId: string) => {
+    setSelectedCameraId(cameraId)
+    setLoadingCamera(true)
+    setStarted(false)
+
+    const current = html5QrCodeRef.current
+    if (current) {
+      try {
+        await current.stop()
+        await current.clear()
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+
+    await startCameraWithId(cameraId)
   }
 
   useEffect(() => {
@@ -98,9 +151,12 @@ function QRScannerModal({ onClose, onScan }: QRScannerModalProps) {
         {cameraError ? (
           <div className="rounded-xl bg-red-50 px-4 py-6 text-center ring-1 ring-red-100">
             <p className="text-sm font-medium text-red-700">{cameraError}</p>
+            <p className="mt-2 text-xs text-red-600">
+              Check your browser's site settings to allow camera access, then try again.
+            </p>
             <button
               type="button"
-              onClick={startScanning}
+              onClick={requestCameraAndStart}
               className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
             >
               Try again
@@ -108,17 +164,55 @@ function QRScannerModal({ onClose, onScan }: QRScannerModalProps) {
           </div>
         ) : !started ? (
           <div className="rounded-xl bg-slate-50 px-4 py-8 text-center ring-1 ring-slate-100">
-            <p className="mb-4 text-sm text-slate-600">Tap below to enable your camera</p>
+            <p className="mb-4 text-sm text-slate-600">
+              Tap below, then allow camera access when your browser asks
+            </p>
             <button
               type="button"
-              onClick={startScanning}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+              onClick={requestCameraAndStart}
+              disabled={loadingCamera}
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              Start Scanning
+              {loadingCamera ? 'Starting camera...' : 'Allow Camera & Start Scanning'}
             </button>
           </div>
         ) : (
-          <div id={SCANNER_ELEMENT_ID} className="overflow-hidden rounded-xl [&_img]:rounded-lg [&_button]:rounded-lg" />
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-slate-700">Point at a desk QR code</p>
+
+              {cameras.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="camera-select" className="text-xs font-medium text-slate-500">
+                    Camera:
+                  </label>
+                  <select
+                    id="camera-select"
+                    value={selectedCameraId ?? ''}
+                    onChange={(e) => switchCamera(e.target.value)}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+                  >
+                    {cameras.map((cam) => (
+                      <option key={cam.id} value={cam.id}>
+                        {cam.label || cam.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {loadingCamera && (
+              <div className="mb-2 flex items-center justify-center rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-100">
+                Starting camera...
+              </div>
+            )}
+
+            <div
+              id={SCANNER_ELEMENT_ID}
+              className="overflow-hidden rounded-xl [&_img]:rounded-lg [&_button]:rounded-lg"
+            />
+          </div>
         )}
 
         {scanError && (
